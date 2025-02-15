@@ -57,7 +57,7 @@ DailyTrack is a **task management app** designed to help you organize your daily
 ### 📥 Installation
 1. Clone the repository:
    ```sh
-   git clone https://github.com/your-username/DailyTrack.git
+   git clone https://github.com/DevvUdit01/DailyTrack.git
    ```
 2. Navigate to the project directory:
    ```sh
@@ -200,7 +200,7 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 If you have any questions or feedback, feel free to reach out:
 
-📧 **Email:** your-devv.udit@gmail.com  
+📧 **Email:** devv.udit@gmail.com  
 🐙 **GitHub:** [DevvUdit01](https://github.com/DevvUdit01)
 
 Enjoy using **DailyTrack**! 🚀
