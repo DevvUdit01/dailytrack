@@ -86,26 +86,26 @@ class _AddTaskPageState extends State<AddTaskPage> {
                   ],
                 ),
 
-            MyInputField(title: "Remind", hint: "$_selectedRemind minutes early",
-             widget: DropdownButton(
-              icon: Icon(Icons.keyboard_arrow_down, color:Colors.grey),
-              elevation: 4,
-              iconSize: 32,
-              style: subTitleStyle,
-              underline: Container(height: 0,),
-              items: remindList.map<DropdownMenuItem<String>>((int value){
-                return DropdownMenuItem<String>(
-                  value: value.toString(),
-                  child: Text(value.toString()),
-                  );
-              }).toList(), 
-              onChanged: (String? val){
-                setState(() {
-                  _selectedRemind = int.parse(val!);
-                });
-              }
-              ),
-            ),
+            // MyInputField(title: "Remind", hint: "$_selectedRemind minutes early",
+            //  widget: DropdownButton(
+            //   icon: Icon(Icons.keyboard_arrow_down, color:Colors.grey),
+            //   elevation: 4,
+            //   iconSize: 32,
+            //   style: subTitleStyle,
+            //   underline: Container(height: 0,),
+            //   items: remindList.map<DropdownMenuItem<String>>((int value){
+            //     return DropdownMenuItem<String>(
+            //       value: value.toString(),
+            //       child: Text(value.toString()),
+            //       );
+            //   }).toList(), 
+            //   onChanged: (String? val){
+            //     setState(() {
+            //       _selectedRemind = int.parse(val!);
+            //     });
+            //   }
+            //   ),
+            // ),
 
 
             MyInputField(title: "Repeat", hint: "$_selectedRepeat",

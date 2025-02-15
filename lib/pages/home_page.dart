@@ -9,6 +9,7 @@ import 'package:date_picker_timeline/date_picker_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_staggered_animations/flutter_staggered_animations.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -29,6 +30,7 @@ class _HomePageState extends State<HomePage> {
   var notifyHelper = NotifyHelper();
 
   late String _local;
+  final GetStorage _storage = GetStorage();
 
   // List to keep track of scheduled notification IDs
   List<int> scheduledNotificationIds = [];
@@ -39,7 +41,19 @@ class _HomePageState extends State<HomePage> {
     notifyHelper.initializeNotification();
     _taskController.getTasks();  // Ensure tasks are loaded when the page starts
     _local = "Some default value"; // Initialize the _local variable safely
+    _loadScheduledNotifications();
   }
+
+    // Load scheduled notification IDs from GetStorage
+  void _loadScheduledNotifications() {
+    scheduledNotificationIds = _storage.read<List>('scheduledNotificationIds')?.cast<int>() ?? [];
+  }
+
+  // Save scheduled notification IDs to GetStorage
+  Future<void> _saveScheduledNotifications() async {
+    await _storage.write('scheduledNotificationIds', scheduledNotificationIds);
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -57,66 +71,92 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  _showTasks() {
-    return Expanded(
-      child: Obx(() {
-        return ListView.builder(
-          itemCount: _taskController.taskList.length,
-          itemBuilder: (_, index) {
-            Task task = _taskController.taskList[index];
+_showTasks() {
+  return Expanded(
+    child: Obx(() {
+      return ListView.builder(
+        itemCount: _taskController.taskList.length,
+        itemBuilder: (_, index) {
+          Task task = _taskController.taskList[index];
 
-            // Handle task based on repeat type
-            if (task.repeat == "None") {
-              // Schedule a one-time notification for "None"
-              _scheduleNotificationForTask(task, isOneTime: true);
-              return _buildTaskRow(task, index);
-            } else if (task.repeat == "Daily") {
-              _scheduleNotificationForTask(task);
-              return _buildTaskRow(task, index);
-            } else if (task.repeat == "Weekly") {
-              _scheduleNotificationForTask(task, weekly: true);
-              return _buildTaskRow(task, index);
-            } else if (task.repeat == "Monthly") {
-              _scheduleNotificationForTask(task, monthly: true);
-              return _buildTaskRow(task, index);
-            } else if (task.date == DateFormat.yMd().format(_selectedDate)) {
-              return _buildTaskRow(task, index);
-            } else {
-              return Container();
-            }
-          },
-        );
-      }),
-    );
+          // Parse the task date
+          DateTime taskDate;
+          try {
+            taskDate = _parseDate(task.date!);
+          } catch (e) {
+            print("Error parsing task date: ${task.date}");
+            return Container(); // Skip this task if the date is invalid
+          }
+
+          String taskDateFormatted = DateFormat.yMd().format(taskDate);
+          String selectedDateFormatted = DateFormat.yMd().format(_selectedDate);
+
+          // Handle task based on repeat type
+          if (task.repeat == "None" && taskDateFormatted == selectedDateFormatted) {
+            _scheduleNotificationForTask(task, isOneTime: true); // Schedule one-time notification
+            return _buildTaskRow(task, index);
+          } else if (task.repeat == "Daily") {
+            _scheduleNotificationForTask(task); // Schedule daily notification
+            return _buildTaskRow(task, index);
+          } else if (task.repeat == "Weekly" && _isSameDayOfWeek(taskDate, _selectedDate)) {
+            _scheduleNotificationForTask(task, weekly: true); // Schedule weekly notification
+            return _buildTaskRow(task, index);
+          } else if (task.repeat == "Monthly" && _isSameDayOfMonth(taskDate, _selectedDate)) {
+            _scheduleNotificationForTask(task, monthly: true); // Schedule monthly notification
+            return _buildTaskRow(task, index);
+          } else {
+            return Container();
+          }
+        },
+      );
+    }),
+  );
+}
+
+DateTime _parseDate(String dateString) {
+  try {
+    // Try parsing the date in the format "M/d/yyyy" (e.g., "2/13/2025")
+    return DateFormat("M/d/yyyy").parse(dateString);
+  } catch (e) {
+    // If parsing fails, try parsing in the default format (e.g., "yyyy-MM-dd")
+    return DateTime.parse(dateString);
+  }
+}
+
+void _scheduleNotificationForTask(Task task, {bool weekly = false, bool monthly = false, bool isOneTime = false}) async {
+  // Get hour and minute from task start time
+  String myTime = _getFormattedTime(task.startTime.toString());
+  int hour = int.parse(myTime.split(":")[0]);
+  int minute = int.parse(myTime.split(":")[1]);
+
+  // Check if the task notification is already scheduled
+  if (scheduledNotificationIds.contains(task.id)) {
+    print("Notification for task '${task.title}' is already scheduled.");
+    return; // Skip scheduling if it's already scheduled
   }
 
-  void _scheduleNotificationForTask(Task task, {bool weekly = false, bool monthly = false, bool isOneTime = false}) async {
-    // Get hour and minute from task start time
-    String myTime = _getFormattedTime(task.startTime.toString());
-    int hour = int.parse(myTime.split(":")[0]);
-    int minute = int.parse(myTime.split(":")[1]);
+  // Request permission for exact alarm scheduling
+  await requestExactAlarmPermission();
 
-    // Check if the task notification is already scheduled
-    if (scheduledNotificationIds.contains(task.id)) {
-      print("Notification for task '${task.title}' is already scheduled.");
-      return; // Skip scheduling if it's already scheduled
-    }
-
-    // Request permission for exact alarm scheduling
-    await requestExactAlarmPermission();
-
-    if (isOneTime) {
-      // For "None", schedule one-time notification
-      await notifyHelper.scheduledNotification(hour, minute, task, oneTime: true);
-    } else {
-      // For other cases, like "Daily", "Weekly", "Monthly"
-      await notifyHelper.scheduledNotification(hour, minute, task, weekly: weekly, monthly: monthly);
-    }
-
-    // Add task notification ID to the list
-    scheduledNotificationIds.add(task.id!);
-    print("Scheduled notification for task '${task.title}' at $hour:$minute.");
+  if (isOneTime) {
+    // For "None", schedule one-time notification
+    await notifyHelper.scheduledNotification(hour, minute, task, oneTime: true);
+  } else if (weekly) {
+    // For "Weekly", schedule notification to repeat every 7 days
+    await notifyHelper.scheduledNotification(hour, minute, task, weekly: true);
+  } else if (monthly) {
+    // For "Monthly", schedule notification to repeat every month
+    await notifyHelper.scheduledNotification(hour, minute, task, monthly: true);
+  } else {
+    // For "Daily", schedule notification to repeat every day
+    await notifyHelper.scheduledNotification(hour, minute, task);
   }
+
+  // Add task notification ID to the list and save it
+  scheduledNotificationIds.add(task.id!);
+  await _saveScheduledNotifications();
+  print("Scheduled notification for task '${task.title}' at $hour:$minute.");
+}
 
   // Helper method to create task row with animation
   Widget _buildTaskRow(Task task, int index) {
@@ -357,11 +397,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   // Method to cancel notifications when a task is deleted
-  void _cancelNotificationForTask(Task task) {
-    if (scheduledNotificationIds.contains(task.id)) {
-      AwesomeNotifications().cancel(task.id!);  // Cancel the notification using the task ID
-      scheduledNotificationIds.remove(task.id); // Remove from the list
-      print("Notification for task '${task.title}' canceled.");
-    }
+ void _cancelNotificationForTask(Task task) async {
+  if (scheduledNotificationIds.contains(task.id)) {
+    AwesomeNotifications().cancel(task.id!);  // Cancel the notification using the task ID
+    scheduledNotificationIds.remove(task.id); // Remove from the list
+    await _saveScheduledNotifications(); // Save the updated list
+    print("Notification for task '${task.title}' canceled.");
   }
+}
+
+bool _isSameDayOfWeek(DateTime date1, DateTime date2) {
+  return date1.weekday == date2.weekday; // Compare the day of the week (Monday = 1, Sunday = 7)
+}
+
+bool _isSameDayOfMonth(DateTime date1, DateTime date2) {
+  return date1.day == date2.day; // Compare the day of the month
+}
 }

@@ -69,31 +69,33 @@ class NotifyHelper {
 
 // Updated scheduled notification method for IST
 Future<void> scheduledNotification(int hour, int minute, Task task, {bool weekly = false, bool monthly = false, bool oneTime = false}) async {
-  print("Scheduling notification for task: ${task.title} at $hour:$minute");
-
+  // Convert the provided hour and minute to a TZDateTime in the local timezone
   tz.TZDateTime scheduledTime = _convertTime(hour, minute);
+  int notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
 
-  // Handle repeat logic based on task.repeat
   bool repeats = false;
+
   if (oneTime) {
-    // No repetition for one-time tasks (None)
+    // One-time notification (no repeats)
     repeats = false;
-  } else if (task.repeat == 'Daily') {
-    repeats = true;  // Daily repeats
   } else if (weekly) {
-    scheduledTime = scheduledTime.add(Duration(days: 7));  // Weekly repeat
+    // Weekly notification (repeat every 7 days)
     repeats = true;
   } else if (monthly) {
-    scheduledTime = tz.TZDateTime(tz.local, scheduledTime.year, scheduledTime.month + 1, scheduledTime.day, scheduledTime.hour, scheduledTime.minute); // Monthly repeat
+    // Monthly notification (repeat every month)
+    repeats = true;
+  } else {
+    // Daily notification (repeat every day)
     repeats = true;
   }
 
+  // Schedule the notification
   AwesomeNotifications().createNotification(
     content: NotificationContent(
-      id: 0,
+      id: notificationId,
       channelKey: 'basic_channel',
-      title: task.title,  // Use task title
-      body: task.note,  // Use task description as the body
+      title: task.title,
+      body: task.note,
       notificationLayout: NotificationLayout.Default,
       payload: {
         "title": task.title,
@@ -107,14 +109,13 @@ Future<void> scheduledNotification(int hour, int minute, Task task, {bool weekly
       hour: scheduledTime.hour,
       minute: scheduledTime.minute,
       second: scheduledTime.second,
-      repeats: repeats,  // Handle repetition
+      repeats: repeats,
       allowWhileIdle: true,
     ),
   );
 
   print("Scheduled notification set for: $scheduledTime with repeat: ${task.repeat}");
 }
-
 
   // Helper function to convert time (if needed)
 // Helper function to convert time (if needed)
@@ -132,8 +133,6 @@ tz.TZDateTime _convertTime(int hour, int minutes) {
 
   return scheduleDate;
 }
-
-
 
   // Request notification permission
   Future<void> _requestNotificationPermission() async {
